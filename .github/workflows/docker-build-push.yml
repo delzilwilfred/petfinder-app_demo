@@ -60,18 +60,82 @@ jobs:
         username: ${{ secrets.EC2_USERNAME }}
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
-          # Navigate to application directory
-          cd /home/${{ secrets.EC2_USERNAME }}/petmanagement || mkdir -p /home/${{ secrets.EC2_USERNAME }}/petmanagement && cd /home/${{ secrets.EC2_USERNAME }}/petmanagement
+          # Create application directory
+          mkdir -p /home/${{ secrets.EC2_USERNAME }}/petmanagement
+          cd /home/${{ secrets.EC2_USERNAME }}/petmanagement
           
-          # Pull latest code
-          if [ -d ".git" ]; then
-            git pull origin main
-          else
-            git clone https://github.com/${{ github.repository }}.git .
-          fi
-          
-          # Set environment variables
-          export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+          # Create docker-compose.yml if it doesn't exist
+          cat > docker-compose.yml << 'EOF'
+          services:
+            mongodb:
+              image: mongo:7
+              container_name: petmanagement_mongodb
+              restart: unless-stopped
+              environment:
+                MONGO_INITDB_ROOT_USERNAME: admin
+                MONGO_INITDB_ROOT_PASSWORD: password123
+                MONGO_INITDB_DATABASE: petmanagement
+              ports:
+                - "27017:27017"
+              volumes:
+                - mongodb_data:/data/db
+              networks:
+                - petmanagement_network
+
+            backend:
+              image: ${{ secrets.DOCKERHUB_USERNAME }}/petmanagement-backend:latest
+              container_name: petmanagement_backend
+              restart: unless-stopped
+              environment:
+                - PORT=5000
+                - NODE_ENV=production
+                - SECRET_KEY=FrgtBHYtiXEr
+                - KEY=Gt!@3BRGhBytujsSer4^U6vtu*etseVg
+                - IV=Vgq^btht&8*!@cfrPnhuCDQ@fv%cRfgY
+                - MONGODB_URI=mongodb://admin:password123@mongodb:27017/petmanagement?authSource=admin
+              ports:
+                - "5000:5000"
+              depends_on:
+                - mongodb
+              volumes:
+                - ./logs:/app/logs
+                - ./uploads:/app/app/routes/uploads
+              networks:
+                - petmanagement_network
+
+            frontend:
+              image: ${{ secrets.DOCKERHUB_USERNAME }}/petmanagement-frontend:latest
+              container_name: petmanagement_frontend
+              restart: unless-stopped
+              environment:
+                - PORT=4000
+                - NODE_ENV=production
+              ports:
+                - "4000:4000"
+              depends_on:
+                - backend
+              networks:
+                - petmanagement_network
+
+            nginx:
+              image: nginx:alpine
+              container_name: petmanagement_nginx
+              restart: unless-stopped
+              ports:
+                - "80:80"
+              depends_on:
+                - frontend
+                - backend
+              networks:
+                - petmanagement_network
+
+          volumes:
+            mongodb_data:
+
+          networks:
+            petmanagement_network:
+              driver: bridge
+          EOF
           
           # Pull latest images
           docker pull ${{ secrets.DOCKERHUB_USERNAME }}/petmanagement-backend:latest
@@ -86,22 +150,42 @@ jobs:
           # Wait for services to be ready
           sleep 30
           
+          # Install required tools
+          sudo apt update
+          sudo DEBIAN_FRONTEND=noninteractive apt install -y jq
+          
           # Install ngrok if not exists
           if ! command -v ngrok &> /dev/null; then
             curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
             echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
-            sudo apt update && sudo apt install ngrok -y
+            sudo apt update && sudo DEBIAN_FRONTEND=noninteractive apt install ngrok -y
           fi
           
           # Kill existing ngrok processes
           pkill ngrok || true
+          sleep 2
           
-          # Start ngrok in background and get public URL
-          ngrok http 4000 --log=stdout > /tmp/ngrok.log 2>&1 &
-          sleep 10
+          # Start ngrok in background
+          nohup ngrok http 4000 > /tmp/ngrok.log 2>&1 &
+          sleep 15
           
-          # Extract and display the public URL
-          NGROK_URL=$(curl -s localhost:4040/api/tunnels | grep -o 'https://[^"]*\.ngrok\.io')
+          # Extract and display the public URL with better error handling
+          NGROK_URL=""
+          for i in {1..5}; do
+            NGROK_URL=$(curl -s localhost:4040/api/tunnels 2>/dev/null | jq -r '.tunnels[0].public_url // empty' 2>/dev/null || echo "")
+            if [ ! -z "$NGROK_URL" ] && [ "$NGROK_URL" != "null" ]; then
+              break
+            fi
+            echo "Attempt $i: Waiting for ngrok to start..."
+            sleep 5
+          done
+          
+          if [ -z "$NGROK_URL" ] || [ "$NGROK_URL" = "null" ]; then
+            echo "⚠️ Could not get ngrok URL, checking manually..."
+            # Fallback: try to extract from log
+            NGROK_URL=$(grep -o 'https://[^[:space:]]*\.ngrok\.io' /tmp/ngrok.log 2>/dev/null | head -1 || echo "Check EC2 manually")
+          fi
+          
           echo "🚀 Application is now accessible at: $NGROK_URL"
           
           # Save URL to file for future reference
@@ -109,9 +193,6 @@ jobs:
           
           # Clean up old images
           docker image prune -f
-          
-          # Return the ngrok URL for GitHub Actions
-          echo "NGROK_URL=$NGROK_URL" >> $GITHUB_ENV
 
     - name: Get ngrok URL
       id: get-url
@@ -121,13 +202,13 @@ jobs:
         username: ${{ secrets.EC2_USERNAME }}
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
-          # Wait a bit more and try to get URL
-          sleep 5
-          NGROK_URL=$(curl -s localhost:4040/api/tunnels | grep -o 'https://[^"]*\.ngrok\.io' | head -1)
-          if [ -z "$NGROK_URL" ]; then
-            NGROK_URL="Check EC2 logs - ngrok might be starting"
+          # Read the saved URL from file
+          if [ -f "/home/${{ secrets.EC2_USERNAME }}/petmanagement/ngrok_url.txt" ]; then
+            NGROK_URL=$(cat /home/${{ secrets.EC2_USERNAME }}/petmanagement/ngrok_url.txt)
+          else
+            NGROK_URL="Deployment completed - check EC2 for ngrok URL"
           fi
-          echo "url=$NGROK_URL" >> $GITHUB_OUTPUT
+          echo "url=$NGROK_URL"
 
     - name: Create deployment comment
       uses: actions/github-script@v7
