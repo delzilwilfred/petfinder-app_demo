@@ -4,17 +4,21 @@ FROM node:18-alpine AS builder
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Install build dependencies for faster builds
+RUN apk add --no-cache python3 make g++
+
+# Copy package files first for better caching
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies with optimizations
+RUN npm ci --prefer-offline --no-audit --progress=false
 
 # Copy source code
 COPY . .
 
-# Remove production file replacement and build
-RUN sed -i '/"fileReplacements":/,/]/d' angular.json && npm run build
+# Build with optimizations
+RUN sed -i '/"fileReplacements":/,/]/d' angular.json && \
+    npm run build -- --configuration=development --optimization=false --source-map=false --build-optimizer=false
 
 # Production stage
 FROM node:18-alpine AS production
@@ -26,7 +30,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install only production dependencies
-RUN npm install --only=production && npm cache clean --force
+RUN npm install --only=production --no-audit --progress=false && npm cache clean --force
 
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
