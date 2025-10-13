@@ -1,0 +1,11 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+README.md
+.angular
+dist
+.nyc_output
+coverage
+e2e
+src/**/*.spec.ts
