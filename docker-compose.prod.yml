@@ -1,0 +1,75 @@
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7
+    container_name: petmanagement_mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: petmanagement
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - petmanagement_network
+
+  # Backend Service
+  backend:
+    image: ${DOCKERHUB_USERNAME}/petmanagement-backend:latest
+    container_name: petmanagement_backend
+    restart: unless-stopped
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      - SECRET_KEY=FrgtBHYtiXEr
+      - KEY=Gt!@3BRGhBytujsSer4^U6vtu*etseVg
+      - IV=Vgq^btht&8*!@cfrPnhuCDQ@fv%cRfgY
+      - MONGODB_URI=mongodb://admin:password123@mongodb:27017/petmanagement?authSource=admin
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mongodb
+    volumes:
+      - ./logs:/app/logs
+      - ./uploads:/app/app/routes/uploads
+    networks:
+      - petmanagement_network
+
+  # Frontend Service
+  frontend:
+    image: ${DOCKERHUB_USERNAME}/petmanagement-frontend:latest
+    container_name: petmanagement_frontend
+    restart: unless-stopped
+    environment:
+      - PORT=4000
+      - NODE_ENV=production
+    ports:
+      - "4000:4000"
+    depends_on:
+      - backend
+    networks:
+      - petmanagement_network
+
+  # Nginx Reverse Proxy (Optional)
+  nginx:
+    image: nginx:alpine
+    container_name: petmanagement_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - petmanagement_network
+
+volumes:
+  mongodb_data:
+
+networks:
+  petmanagement_network:
+    driver: bridge
