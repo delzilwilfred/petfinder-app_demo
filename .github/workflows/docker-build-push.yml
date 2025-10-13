@@ -45,3 +45,98 @@ jobs:
           ${{ secrets.DOCKERHUB_USERNAME }}/petmanagement-frontend:latest
           ${{ secrets.DOCKERHUB_USERNAME }}/petmanagement-frontend:${{ github.sha }}
         platforms: linux/amd64,linux/arm64
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: petman_secrets
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    
+    steps:
+    - name: Deploy to EC2
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          # Navigate to application directory
+          cd /home/${{ secrets.EC2_USERNAME }}/petmanagement || mkdir -p /home/${{ secrets.EC2_USERNAME }}/petmanagement && cd /home/${{ secrets.EC2_USERNAME }}/petmanagement
+          
+          # Pull latest code
+          if [ -d ".git" ]; then
+            git pull origin main
+          else
+            git clone https://github.com/${{ github.repository }}.git .
+          fi
+          
+          # Set environment variables
+          export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+          
+          # Pull latest images
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/petmanagement-backend:latest
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/petmanagement-frontend:latest
+          
+          # Stop existing containers
+          docker-compose down || true
+          
+          # Start new containers
+          docker-compose up -d
+          
+          # Wait for services to be ready
+          sleep 30
+          
+          # Install ngrok if not exists
+          if ! command -v ngrok &> /dev/null; then
+            curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+            echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+            sudo apt update && sudo apt install ngrok -y
+          fi
+          
+          # Kill existing ngrok processes
+          pkill ngrok || true
+          
+          # Start ngrok in background and get public URL
+          ngrok http 4000 --log=stdout > /tmp/ngrok.log 2>&1 &
+          sleep 10
+          
+          # Extract and display the public URL
+          NGROK_URL=$(curl -s localhost:4040/api/tunnels | grep -o 'https://[^"]*\.ngrok\.io')
+          echo "🚀 Application is now accessible at: $NGROK_URL"
+          
+          # Save URL to file for future reference
+          echo "$NGROK_URL" > /home/${{ secrets.EC2_USERNAME }}/petmanagement/ngrok_url.txt
+          
+          # Clean up old images
+          docker image prune -f
+          
+          # Return the ngrok URL for GitHub Actions
+          echo "NGROK_URL=$NGROK_URL" >> $GITHUB_ENV
+
+    - name: Get ngrok URL
+      id: get-url
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          # Wait a bit more and try to get URL
+          sleep 5
+          NGROK_URL=$(curl -s localhost:4040/api/tunnels | grep -o 'https://[^"]*\.ngrok\.io' | head -1)
+          if [ -z "$NGROK_URL" ]; then
+            NGROK_URL="Check EC2 logs - ngrok might be starting"
+          fi
+          echo "url=$NGROK_URL" >> $GITHUB_OUTPUT
+
+    - name: Create deployment comment
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const url = '${{ steps.get-url.outputs.url }}';
+          github.rest.repos.createCommitComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            commit_sha: context.sha,
+            body: `🚀 **Deployment Successful!**\n\n📱 **Live Application**: ${url}\n\n🔧 **Services**:\n- Frontend: ${url}\n- Backend API: ${url.replace('https://', 'https://').replace('.ngrok.io', '.ngrok.io')}/v1/\n\n⏰ Deployed at: ${new Date().toISOString()}`
+          })
