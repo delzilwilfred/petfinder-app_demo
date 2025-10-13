@@ -16,9 +16,8 @@ RUN npm ci --prefer-offline --no-audit --progress=false
 # Copy source code
 COPY . .
 
-# Build with optimizations
-RUN sed -i '/"fileReplacements":/,/]/d' angular.json && \
-    npm run build -- --configuration=development --optimization=false --source-map=false --build-optimizer=false
+# Remove problematic file replacements and build
+RUN sed -i '/"fileReplacements":/,/]/d' angular.json && npm run build
 
 # Production stage
 FROM node:18-alpine AS production
