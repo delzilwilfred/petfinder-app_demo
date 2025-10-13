@@ -219,14 +219,9 @@ jobs:
           fi
           echo "url=$NGROK_URL"
 
-    - name: Create deployment comment
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const url = '${{ steps.get-url.outputs.url }}';
-          github.rest.repos.createCommitComment({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            commit_sha: context.sha,
-            body: `🚀 **Deployment Successful!**\n\n📱 **Live Application**: ${url}\n\n🔧 **Services**:\n- Frontend: ${url}\n- Backend API: ${url.replace('https://', 'https://').replace('.ngrok.io', '.ngrok.io')}/v1/\n\n⏰ Deployed at: ${new Date().toISOString()}`
-          })
+    - name: Display deployment info
+      run: |
+        echo "🚀 Deployment Successful!"
+        echo "📱 Live Application: ${{ steps.get-url.outputs.url }}"
+        echo "🔧 Backend API: ${{ steps.get-url.outputs.url }}/v1/"
+        echo "⏰ Deployed at: $(date)"
