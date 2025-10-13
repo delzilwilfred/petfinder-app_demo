@@ -16,7 +16,7 @@ RUN npm ci --prefer-offline --no-audit --progress=false
 # Copy source code
 COPY . .
 
-# Remove problematic file replacements and build
+# Remove problematic file replacements and build with fresh environment
 RUN sed -i '/"fileReplacements":/,/]/d' angular.json && npm run build
 
 # Production stage

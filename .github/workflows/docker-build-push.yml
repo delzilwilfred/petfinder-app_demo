@@ -146,9 +146,12 @@ jobs:
               driver: bridge
           EOF
           
-          # Pull latest images
+          # Pull latest images (force fresh pull)
           docker pull ${{ secrets.DOCKERHUB_USERNAME }}/petmanagement-backend:latest
           docker pull ${{ secrets.DOCKERHUB_USERNAME }}/petmanagement-frontend:latest
+          
+          # Remove old images to force fresh deployment
+          docker rmi $(docker images -q ${{ secrets.DOCKERHUB_USERNAME }}/petmanagement-frontend) || true
           
           # Stop existing containers
           docker-compose down || true
