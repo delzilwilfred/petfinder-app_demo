@@ -174,8 +174,8 @@ jobs:
           pkill ngrok || true
           sleep 2
           
-          # Start ngrok in background
-          nohup ngrok http 4000 > /tmp/ngrok.log 2>&1 &
+          # Start ngrok in background (expose nginx port 80)
+          nohup ngrok http 80 > /tmp/ngrok.log 2>&1 &
           sleep 15
           
           # Extract and display the public URL with better error handling
