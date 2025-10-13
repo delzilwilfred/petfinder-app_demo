@@ -177,30 +177,21 @@ jobs:
           pkill ngrok || true
           sleep 2
           
-          # Start ngrok in background (expose nginx port 80)
+          # Start ngrok for nginx (port 80)
           nohup ngrok http 80 > /tmp/ngrok.log 2>&1 &
           sleep 15
           
-          # Extract and display the public URL with better error handling
-          NGROK_URL=""
-          for i in {1..5}; do
-            NGROK_URL=$(curl -s localhost:4040/api/tunnels 2>/dev/null | jq -r '.tunnels[0].public_url // empty' 2>/dev/null || echo "")
-            if [ ! -z "$NGROK_URL" ] && [ "$NGROK_URL" != "null" ]; then
-              break
-            fi
-            echo "Attempt $i: Waiting for ngrok to start..."
-            sleep 5
-          done
+          # Get the ngrok URL
+          NGROK_URL=$(curl -s localhost:4040/api/tunnels 2>/dev/null | jq -r '.tunnels[0].public_url // empty' 2>/dev/null || echo "")
           
           if [ -z "$NGROK_URL" ] || [ "$NGROK_URL" = "null" ]; then
-            echo "⚠️ Could not get ngrok URL, checking manually..."
-            # Fallback: try to extract from log
             NGROK_URL=$(grep -o 'https://[^[:space:]]*\.ngrok\.io' /tmp/ngrok.log 2>/dev/null | head -1 || echo "Check EC2 manually")
           fi
           
-          echo "🚀 Application is now accessible at: $NGROK_URL"
+          echo "🚀 Application accessible at: $NGROK_URL"
+          echo "🔧 API accessible at: $NGROK_URL/v1/"
           
-          # Save URL to file for future reference
+          # Save URL
           echo "$NGROK_URL" > /home/${{ secrets.EC2_USERNAME }}/petmanagement/ngrok_url.txt
           
           # Clean up old images
