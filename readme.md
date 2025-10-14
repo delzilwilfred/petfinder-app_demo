@@ -23,3 +23,10 @@ Add these in Settings → Environments → petman_secrets:
 - `EC2_HOST` - EC2 public IP address
 - `EC2_USERNAME` - EC2 username (ubuntu/ec2-user)
 - `EC2_SSH_KEY` - Private SSH key content (.pem file)
+
+## Log Monitoring
+Automated log monitoring script (`monitor-logs.sh`):
+- Monitors `/var/log/petfinder.log` for HTTP 500 errors
+- Alerts when >5 errors occur in 1 minute
+- Auto-rotates logs when >10MB
+- Usage: `./monitor-logs.sh [monitor|simulate|rotate|continuous]`

@@ -249,6 +249,20 @@ jobs:
           
           # Clean up old images
           docker image prune -f
+          
+          # Deploy monitoring script
+          chmod +x monitor-logs.sh
+          sudo cp monitor-logs.sh /usr/local/bin/
+          
+          # Create log directory and files
+          sudo mkdir -p /var/log
+          sudo touch /var/log/petfinder.log /var/log/petfinder-alerts.log
+          sudo chmod 666 /var/log/petfinder.log /var/log/petfinder-alerts.log
+          
+          # Test the monitoring script
+          echo "Testing log monitoring script..."
+          /usr/local/bin/monitor-logs.sh simulate
+          /usr/local/bin/monitor-logs.sh monitor
 
     - name: Get ngrok URL
       id: get-url
