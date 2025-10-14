@@ -73,8 +73,78 @@ jobs:
           mkdir -p /home/${{ secrets.EC2_USERNAME }}/petmanagement
           cd /home/${{ secrets.EC2_USERNAME }}/petmanagement
           
-          # Download the monitoring script from repository
-          curl -o monitor-logs.sh https://raw.githubusercontent.com/${{ github.repository }}/main/monitor-logs.sh
+          # Create the monitoring script directly
+          cat > monitor-logs.sh << 'SCRIPT_EOF'
+          #!/bin/bash
+          
+          # Pet Finder Log Monitor Script
+          LOG_FILE="/var/log/petfinder.log"
+          ALERT_FILE="/var/log/petfinder-alerts.log"
+          ERROR_THRESHOLD=5
+          TIME_WINDOW=60
+          TEMP_ERROR_FILE="/tmp/petfinder_errors.tmp"
+          
+          # Create log files if they don't exist
+          sudo touch "$LOG_FILE" "$ALERT_FILE" 2>/dev/null || true
+          sudo chmod 666 "$LOG_FILE" "$ALERT_FILE" 2>/dev/null || true
+          
+          # Function to log alerts
+          log_alert() {
+              local message="$1"
+              local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+              echo "[$timestamp] ALERT: $message" | sudo tee -a "$ALERT_FILE"
+              echo "[$timestamp] ALERT: $message"
+          }
+          
+          # Function to simulate log entries for testing
+          simulate_logs() {
+              echo "Simulating log entries for testing..."
+              local timestamp=$(date '+%Y-%m-%dT%H:%M:%S')
+              
+              # Simulate error logs
+              for i in {1..6}; do
+                  echo "[$timestamp] ERROR: Database connection failed - attempt $i" | sudo tee -a "$LOG_FILE"
+                  echo "[$timestamp] ::ffff:127.0.0.1 - - \"POST /v1/users/signup HTTP/1.1\" 500 -" | sudo tee -a "$LOG_FILE"
+              done
+              
+              echo "Simulated logs added to $LOG_FILE"
+          }
+          
+          # Function to monitor errors
+          monitor_errors() {
+              echo "Monitoring $LOG_FILE for errors..."
+              
+              # Count recent errors
+              if [[ -f "$LOG_FILE" ]]; then
+                  error_count=$(grep -c -E "(HTTP/1\.[01]\" 5[0-9][0-9]|ERROR|Error|error)" "$LOG_FILE" 2>/dev/null || echo "0")
+                  echo "Found $error_count errors in log file"
+                  
+                  if [[ $error_count -ge $ERROR_THRESHOLD ]]; then
+                      log_alert "High error rate detected: $error_count errors found"
+                  else
+                      echo "Error count ($error_count) is below threshold ($ERROR_THRESHOLD)"
+                  fi
+              else
+                  echo "Log file $LOG_FILE not found"
+              fi
+          }
+          
+          # Main execution
+          case "${1:-monitor}" in
+              "simulate")
+                  simulate_logs
+                  ;;
+              "monitor")
+                  echo "Starting Pet Finder log monitoring..."
+                  monitor_errors
+                  echo "Monitoring complete. Check $ALERT_FILE for any alerts."
+                  ;;
+              *)
+                  echo "Usage: $0 [monitor|simulate]"
+                  exit 1
+                  ;;
+          esac
+          SCRIPT_EOF
           
           # Create nginx.conf
           cat > nginx.conf << 'NGINX_EOF'
