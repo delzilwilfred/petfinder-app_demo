@@ -73,6 +73,9 @@ jobs:
           mkdir -p /home/${{ secrets.EC2_USERNAME }}/petmanagement
           cd /home/${{ secrets.EC2_USERNAME }}/petmanagement
           
+          # Download the monitoring script from repository
+          curl -o monitor-logs.sh https://raw.githubusercontent.com/${{ github.repository }}/main/monitor-logs.sh
+          
           # Create nginx.conf
           cat > nginx.conf << 'NGINX_EOF'
           events {
