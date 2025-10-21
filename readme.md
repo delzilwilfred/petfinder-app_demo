@@ -12,6 +12,7 @@ git clone <repo-url> && cd petmanagement && docker-compose up --build
 - Node.js backend  
 - MongoDB database
 - Docker containers
+- update
 
 ## Auto Deployment
 Push to main branch → automatically deploys to EC2 with public ngrok URL
