@@ -27,7 +27,7 @@ export class ResetpasswordComponent {
         this.commonService.alert('Error', 'Password do not match')
         return;
       }
-      this.commonService.postRequest('users/reset_password',{token:this.token,password: this.resetdata.password}).then((resetresponse: any) => {
+      this.commonService.postRequest('/users/reset_password',{token:this.token,password: this.resetdata.password}).then((resetresponse: any) => {
         if (resetresponse.status) {
           this.commonService.alert('Success', resetresponse.message)
           this.spinner.hide()

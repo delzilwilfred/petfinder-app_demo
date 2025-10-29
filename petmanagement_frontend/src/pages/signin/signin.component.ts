@@ -18,7 +18,7 @@ export class SigninComponent {
   onSubmit(signinForm: NgForm): void {
     this.spinner.show()
     if (signinForm.valid) {
-      this.commonService.postRequest('users/signin', this.user).then((signinresponse: any) => {
+      this.commonService.postRequest('/users/signin', this.user).then((signinresponse: any) => {
         if (signinresponse.status) {
           this.commonService.loginstatus.next(true)
           sessionStorage.setItem('key', signinresponse.token)

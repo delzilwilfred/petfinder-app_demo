@@ -53,7 +53,7 @@ export class DashboardpageComponent {
   }
 
   getallpetdata() {
-    this.commonService.getRequest('users/get_all_pet_reports').then((allpetres: any) => {
+    this.commonService.getRequest('/users/get_all_pet_reports').then((allpetres: any) => {
       this.all_pet_details = allpetres.data
       this.allpettotal = allpetres.data.length
     }).catch((_allpetreserror: any) => {
@@ -62,7 +62,7 @@ export class DashboardpageComponent {
     })
   }
   getmypetdata() {
-    this.commonService.getRequest('users/get_my_pet_reports').then((mypetres: any) => {
+    this.commonService.getRequest('/users/get_my_pet_reports').then((mypetres: any) => {
 
       this.my_pet_details = mypetres.data
       this.mypettotal = mypetres.data.length
@@ -106,7 +106,7 @@ export class DashboardpageComponent {
       formData.append('petage', this.petreportdetails.petage);
       formData.append('locationlat', this.petreportdetails.lastsightlocation.lat);
       formData.append('locationlng', this.petreportdetails.lastsightlocation.lng);
-      this.commonService.postFileRequest('users/report_pet_missing', formData).then((petreposrtresponse: any) => {
+      this.commonService.postFileRequest('/users/report_pet_missing', formData).then((petreposrtresponse: any) => {
         if (petreposrtresponse.status) {
           this.commonService.alert('Success', petreposrtresponse.message)
         } else {

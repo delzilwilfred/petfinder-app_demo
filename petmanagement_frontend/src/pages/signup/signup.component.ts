@@ -19,7 +19,7 @@ export class SignupComponent {
   onSubmit(signupform: NgForm): void {
     this.spinner.show()
     if (signupform.valid) {
-      this.commonService.postRequest('users/signup', this.user).then((signupresponse: any) => {
+      this.commonService.postRequest('/users/signup', this.user).then((signupresponse: any) => {
         if (signupresponse.status) {
           this.commonService.alert('Success', signupresponse.message)
           this.spinner.hide()
